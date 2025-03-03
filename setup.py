@@ -11,7 +11,7 @@ def descriptions():
 
 
 def version():
-    with open('octodns_hetzner/__init__.py') as fh:
+    with open('octodns_vultr/__init__.py') as fh:
         for line in fh:
             if line.startswith('__version__'):
                 return line.split("'")[1]
@@ -23,8 +23,8 @@ description, long_description = descriptions()
 tests_require = ('pytest', 'pytest-cov', 'pytest-network', 'requests_mock')
 
 setup(
-    author='Ross McFarland',
-    author_email='rwmcfa1@gmail.com',
+    author='Anthony Izzo',
+    author_email='izzo.anthony@gmail.com',
     description=description,
     extras_require={
         'dev': tests_require
@@ -46,10 +46,10 @@ setup(
     license='MIT',
     long_description=long_description,
     long_description_content_type='text/markdown',
-    name='octodns-hetzner',
+    name='octodns-vultr',
     packages=find_packages(),
     python_requires='>=3.9',
     tests_require=tests_require,
-    url='https://github.com/octodns/octodns-hetzner',
+    url='https://github.com/izzoa/octodns-vultr',
     version=version(),
 )

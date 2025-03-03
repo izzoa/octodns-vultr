@@ -1,4 +1,4 @@
-name: octoDNS HetznerProvider
+name: octoDNS VultrProvider
 on: [pull_request]
 
 jobs:

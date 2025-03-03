@@ -2,7 +2,12 @@
 
 * Enable management of root NS records
 
-## v0.0.1 - 2022-01-12 - Moving
+## v0.0.1 - 2023-??-??
+
+* Initial release of Vultr provider
+* Support for A, AAAA, CAA, CNAME, MX, NS, SRV, and TXT record types
+* Support for root NS records
+* Based on the octodns-hetzner provider, adapted for Vultr's API
 
 #### Nothworthy Changes
 

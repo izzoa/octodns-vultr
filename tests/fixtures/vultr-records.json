@@ -1,0 +1,123 @@
+{
+  "records": [
+    {
+      "id": "cb676a46-66fd-4dfb-b839-443f2e6c0b60",
+      "type": "A",
+      "name": "",
+      "data": "1.2.3.4",
+      "priority": 0,
+      "ttl": 300
+    },
+    {
+      "id": "cb676a46-66fd-4dfb-b839-443f2e6c0b61",
+      "type": "A",
+      "name": "www",
+      "data": "1.2.3.4",
+      "priority": 0,
+      "ttl": 300
+    },
+    {
+      "id": "cb676a46-66fd-4dfb-b839-443f2e6c0b62",
+      "type": "A",
+      "name": "www",
+      "data": "2.2.3.4",
+      "priority": 0,
+      "ttl": 300
+    },
+    {
+      "id": "cb676a46-66fd-4dfb-b839-443f2e6c0b63",
+      "type": "AAAA",
+      "name": "",
+      "data": "2001:db8:3c4d:15::1a2f:1a2b",
+      "priority": 0,
+      "ttl": 300
+    },
+    {
+      "id": "cb676a46-66fd-4dfb-b839-443f2e6c0b64",
+      "type": "AAAA",
+      "name": "www",
+      "data": "2001:db8:3c4d:15::1a2f:1a2b",
+      "priority": 0,
+      "ttl": 300
+    },
+    {
+      "id": "cb676a46-66fd-4dfb-b839-443f2e6c0b65",
+      "type": "AAAA",
+      "name": "www",
+      "data": "2001:db8:3c4d:15::1a2f:1a2c",
+      "priority": 0,
+      "ttl": 300
+    },
+    {
+      "id": "cb676a46-66fd-4dfb-b839-443f2e6c0b66",
+      "type": "CAA",
+      "name": "",
+      "data": "0 issue \"ca.example.net\"",
+      "priority": 0,
+      "ttl": 300
+    },
+    {
+      "id": "cb676a46-66fd-4dfb-b839-443f2e6c0b67",
+      "type": "CNAME",
+      "name": "sub",
+      "data": "unit.tests.",
+      "priority": 0,
+      "ttl": 300
+    },
+    {
+      "id": "cb676a46-66fd-4dfb-b839-443f2e6c0b68",
+      "type": "MX",
+      "name": "",
+      "data": "smtp-1.unit.tests.",
+      "priority": 10,
+      "ttl": 300
+    },
+    {
+      "id": "cb676a46-66fd-4dfb-b839-443f2e6c0b69",
+      "type": "MX",
+      "name": "",
+      "data": "smtp-2.unit.tests.",
+      "priority": 20,
+      "ttl": 300
+    },
+    {
+      "id": "cb676a46-66fd-4dfb-b839-443f2e6c0b70",
+      "type": "NS",
+      "name": "",
+      "data": "ns1.unit.tests.",
+      "priority": 0,
+      "ttl": 300
+    },
+    {
+      "id": "cb676a46-66fd-4dfb-b839-443f2e6c0b71",
+      "type": "NS",
+      "name": "",
+      "data": "ns2.unit.tests.",
+      "priority": 0,
+      "ttl": 300
+    },
+    {
+      "id": "cb676a46-66fd-4dfb-b839-443f2e6c0b72",
+      "type": "SRV",
+      "name": "_sip._tcp",
+      "data": "10 5060 sip.unit.tests.",
+      "priority": 10,
+      "ttl": 300
+    },
+    {
+      "id": "cb676a46-66fd-4dfb-b839-443f2e6c0b73",
+      "type": "TXT",
+      "name": "",
+      "data": "v=spf1 ip4:192.168.0.1/16-all",
+      "priority": 0,
+      "ttl": 600
+    }
+  ],
+  "meta": {
+    "total": 14,
+    "links": {
+      "next": "",
+      "prev": ""
+    }
+  }
+} 

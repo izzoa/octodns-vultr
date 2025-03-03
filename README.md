@@ -1,13 +1,13 @@
-## Hetzner DNS provider for octoDNS
+## Vultr DNS provider for octoDNS
 
-An [octoDNS](https://github.com/octodns/octodns/) provider that targets [Hetzner DNS](https://www.hetzner.com/dns-console).
+An [octoDNS](https://github.com/octodns/octodns/) provider that targets [Vultr DNS](https://www.vultr.com/docs/introduction-to-vultr-dns/).
 
 ### Installation
 
 #### Command line
 
 ```
-pip install octodns-hetzner
+pip install octodns-vultr
 ```
 
 #### requirements.txt/setup.py
@@ -19,7 +19,7 @@ Pinning specific versions or SHAs is recommended to avoid unplanned upgrades.
 ```
 # Start with the latest versions and don't just copy what's here
 octodns==0.9.14
-octodns-hetzner==0.0.1
+octodns-vultr==0.0.1
 ```
 
 ##### SHAs
@@ -27,32 +27,32 @@ octodns-hetzner==0.0.1
 ```
 # Start with the latest/specific versions and don't just copy what's here
 -e git+https://git@github.com/octodns/octodns.git@9da19749e28f68407a1c246dfdf65663cdc1c422#egg=octodns
--e git+https://git@github.com/octodns/octodns-hetzner.git@ec9661f8b335241ae4746eea467a8509205e6a30#egg=octodns_hetzner
+-e git+https://git@github.com/izzoa/octodns-vultr.git@main#egg=octodns_vultr
 ```
 
 ### Configuration
 
 ```yaml
 providers:
-  hetzner:
-    class: octodns_hetzner.HetznerProvider
-    # Your Hetzner API token (required)
-    token: env/HETZNER_TOKEN
+  vultr:
+    class: octodns_vultr.VultrProvider
+    # Your Vultr API token (required)
+    token: env/VULTR_API_TOKEN
 ```
 
 ### Support Information
 
 #### Records
 
-HetznerProvider supports A, AAAA, CAA, CNAME, MX, NS, SRV, and TXT
+VultrProvider supports A, AAAA, CAA, CNAME, MX, NS, SRV, and TXT
 
 #### Root NS Records
 
-HetznerProvider supports full root NS record management.
+VultrProvider supports full root NS record management.
 
 #### Dynamic
 
-HetznerProvider does not support dynamic records.
+VultrProvider does not support dynamic records.
 
 ### Development
 

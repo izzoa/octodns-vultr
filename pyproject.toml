@@ -1,11 +1,30 @@
+[build-system]
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
+
 [tool.black]
-line-length=80
-skip-string-normalization=true
-skip-magic-trailing-comma=true
+line-length = 80
+target-version = ['py39']
+skip-string-normalization = true
+include = '\.pyi?$'
+exclude = '''
+/(
+    \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | _build
+  | buck-out
+  | build
+  | dist
+)/
+'''
 
 [tool.isort]
 profile = "black"
-known_first_party="octodns_hetzner"
+known_first_party="octodns_vultr"
 known_octodns="octodns"
 line_length=80
 sections="FUTURE,STDLIB,THIRDPARTY,OCTODNS,FIRSTPARTY,LOCALFOLDER"

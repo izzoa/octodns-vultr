@@ -13,32 +13,37 @@ from octodns.provider.base import BaseProvider
 from octodns.record import Record
 
 # TODO: remove __VERSION__ with the next major version release
-__version__ = __VERSION__ = '0.0.2'
+__version__ = __VERSION__ = '0.0.1'
 
 
-class HetznerClientException(ProviderException):
+class VultrClientException(ProviderException):
     pass
 
 
-class HetznerClientNotFound(HetznerClientException):
+class VultrClientNotFound(VultrClientException):
     def __init__(self):
         super().__init__('Not Found')
 
 
-class HetznerClientUnauthorized(HetznerClientException):
+class VultrClientUnauthorized(VultrClientException):
     def __init__(self):
         super().__init__('Unauthorized')
 
 
-class HetznerClient(object):
-    BASE_URL = 'https://dns.hetzner.com/api/v1'
+class VultrClientForbidden(VultrClientException):
+    def __init__(self):
+        super().__init__('Forbidden')
+
+
+class VultrClient(object):
+    BASE_URL = 'https://api.vultr.com/v2'
 
     def __init__(self, token):
         session = Session()
         session.headers.update(
             {
-                'Auth-API-Token': token,
-                'User-Agent': f'octodns/{octodns_version} octodns-hetzner/{__VERSION__}',
+                'Authorization': f'Bearer {token}',
+                'User-Agent': f'octodns/{octodns_version} octodns-vultr/{__VERSION__}',
             }
         )
         self._session = session
@@ -47,9 +52,11 @@ class HetznerClient(object):
         url = f'{self.BASE_URL}{path}'
         response = self._session.request(method, url, params=params, json=data)
         if response.status_code == 401:
-            raise HetznerClientUnauthorized()
+            raise VultrClientUnauthorized()
         if response.status_code == 404:
-            raise HetznerClientNotFound()
+            raise VultrClientNotFound()
+        if response.status_code == 403:
+            raise VultrClientForbidden()
         response.raise_for_status()
         return response
 
@@ -57,74 +64,88 @@ class HetznerClient(object):
         return self._do(method, path, params, data).json()
 
     def zone_get(self, name):
-        params = {'name': name}
-        return self._do_json('GET', '/zones', params)['zones'][0]
+        # Vultr API uses /domains/{domain} to get a specific domain
+        try:
+            return self._do_json('GET', f'/domains/{name}')['domain']
+        except VultrClientNotFound:
+            return None
 
     def zone_create(self, name, ttl=None):
-        data = {'name': name, 'ttl': ttl}
-        return self._do_json('POST', '/zones', data=data)['zone']
+        # Vultr API requires a default IP address when creating a domain
+        # We'll use a placeholder IP that can be updated later
+        data = {'domain': name, 'ip': '192.0.2.1'}  # Using TEST-NET-1 IP as placeholder
+        return self._do_json('POST', '/domains', data=data)['domain']
 
-    def zone_records_get(self, zone_id):
-        params = {'zone_id': zone_id}
-        records = self._do_json('GET', '/records', params=params)['records']
+    def zone_records_get(self, domain):
+        # Vultr API uses /domains/{domain}/records to get records
+        records = self._do_json('GET', f'/domains/{domain}/records')['records']
+        # Convert @ to empty string for root domain records
         for record in records:
             if record['name'] == '@':
                 record['name'] = ''
         return records
 
-    def zone_record_create(self, zone_id, name, _type, value, ttl=None):
-        data = {
+    def zone_record_create(self, domain, name, _type, data, ttl=None, priority=None):
+        # Vultr API uses /domains/{domain}/records to create records
+        record_data = {
             'name': name or '@',
-            'ttl': ttl,
             'type': _type,
-            'value': value,
-            'zone_id': zone_id,
+            'data': data,
         }
-        self._do('POST', '/records', data=data)
+        
+        if ttl:
+            record_data['ttl'] = ttl
+            
+        if priority and _type in ('MX', 'SRV'):
+            record_data['priority'] = priority
+            
+        self._do('POST', f'/domains/{domain}/records', data=record_data)
 
-    def zone_record_delete(self, zone_id, record_id):
-        self._do('DELETE', f'/records/{record_id}')
+    def zone_record_delete(self, domain, record_id):
+        # Vultr API uses /domains/{domain}/records/{record-id} to delete records
+        self._do('DELETE', f'/domains/{domain}/records/{record_id}')
 
 
-class HetznerProvider(BaseProvider):
+class VultrProvider(BaseProvider):
     SUPPORTS_GEO = False
     SUPPORTS_DYNAMIC = False
     SUPPORTS_ROOT_NS = True
+    # Vultr supports A, AAAA, CNAME, NS, MX, SRV, TXT, CAA, SSHFP
     SUPPORTS = set(('A', 'AAAA', 'CAA', 'CNAME', 'MX', 'NS', 'SRV', 'TXT'))
 
     def __init__(self, id, token, *args, **kwargs):
-        self.log = logging.getLogger(f'HetznerProvider[{id}]')
+        self.log = logging.getLogger(f'VultrProvider[{id}]')
         self.log.debug('__init__: id=%s, token=***', id)
         super().__init__(id, *args, **kwargs)
-        self._client = HetznerClient(token)
+        self._client = VultrClient(token)
 
         self._zone_records = {}
         self._zone_metadata = {}
-        self._zone_name_to_id = {}
 
     def _append_dot(self, value):
         if value == '@' or value[-1] == '.':
             return value
         return f'{value}.'
 
-    def zone_metadata(self, zone_id=None, zone_name=None):
+    def zone_metadata(self, zone_name=None):
         if zone_name is not None:
-            if zone_name in self._zone_name_to_id:
-                zone_id = self._zone_name_to_id[zone_name]
-            else:
-                zone = self._client.zone_get(name=zone_name[:-1])
-                zone_id = zone['id']
-                self._zone_name_to_id[zone_name] = zone_id
-                self._zone_metadata[zone_id] = zone
-
-        return self._zone_metadata[zone_id]
+            if zone_name not in self._zone_metadata:
+                # Remove trailing dot for Vultr API
+                domain = zone_name[:-1]
+                try:
+                    zone = self._client.zone_get(name=domain)
+                    self._zone_metadata[zone_name] = zone
+                except VultrClientNotFound:
+                    return None
+        
+        return self._zone_metadata.get(zone_name)
 
     def _record_ttl(self, record):
-        default_ttl = self.zone_metadata(zone_id=record['zone_id'])['ttl']
-        return record['ttl'] if 'ttl' in record else default_ttl
+        # Vultr records have TTL directly in the record
+        return record.get('ttl', 300)  # Default to 300 if not specified
 
     def _data_for_multiple(self, _type, records):
-        values = [record['value'].replace(';', '\\;') for record in records]
+        values = [record['data'].replace(';', '\\;') for record in records]
         return {
             'ttl': self._record_ttl(records[0]),
             'type': _type,
@@ -137,11 +158,13 @@ class HetznerProvider(BaseProvider):
     def _data_for_CAA(self, _type, records):
         values = []
         for record in records:
-            value_without_spaces = record['value'].replace(' ', '')
-            flags = value_without_spaces[0]
-            tag = value_without_spaces[1:].split('"')[0]
-            value = record['value'].split('"')[1]
-            values.append({'flags': int(flags), 'tag': tag, 'value': value})
+            # Vultr stores CAA records in format "flags tag value"
+            parts = record['data'].split(' ', 2)
+            if len(parts) == 3:
+                flags, tag, value = parts
+                # Remove quotes if present
+                value = value.strip('"')
+                values.append({'flags': int(flags), 'tag': tag, 'value': value})
         return {
             'ttl': self._record_ttl(records[0]),
             'type': _type,
@@ -153,19 +176,17 @@ class HetznerProvider(BaseProvider):
         return {
             'ttl': self._record_ttl(record),
             'type': _type,
-            'value': self._append_dot(record['value']),
+            'value': self._append_dot(record['data']),
         }
 
     def _data_for_MX(self, _type, records):
         values = []
         for record in records:
-            value_stripped_split = record['value'].strip().split(' ')
-            preference = value_stripped_split[0]
-            exchange = value_stripped_split[-1]
+            # Vultr stores priority as a separate field
             values.append(
                 {
-                    'preference': int(preference),
-                    'exchange': self._append_dot(exchange),
+                    'preference': int(record['priority']),
+                    'exchange': self._append_dot(record['data']),
                 }
             )
         return {
@@ -177,7 +198,7 @@ class HetznerProvider(BaseProvider):
     def _data_for_NS(self, _type, records):
         values = []
         for record in records:
-            values.append(self._append_dot(record['value']))
+            values.append(self._append_dot(record['data']))
         return {
             'ttl': self._record_ttl(records[0]),
             'type': _type,
@@ -187,35 +208,30 @@ class HetznerProvider(BaseProvider):
     def _data_for_SRV(self, _type, records):
         values = []
         for record in records:
-            value_stripped = record['value'].strip()
-            priority = value_stripped.split(' ')[0]
-            weight = value_stripped[len(priority) :].strip().split(' ')[0]
-            target = value_stripped.split(' ')[-1]
-            port = value_stripped[: -len(target)].strip().split(' ')[-1]
-            values.append(
-                {
-                    'port': int(port),
-                    'priority': int(priority),
-                    'target': self._append_dot(target),
-                    'weight': int(weight),
-                }
-            )
-        return {
-            'ttl': self._record_ttl(records[0]),
-            'type': _type,
-            'values': values,
-        }
+            # Vultr stores SRV records in the format "weight port target"
+            # Priority is stored separately
+            parts = record['data'].split(' ', 2)
+            if len(parts) == 3:
+                weight, port, target = parts
+                values.append(
+                    {
+                        'port': int(port),
+                        'priority': int(record['priority']),
+                        'target': self._append_dot(target),
+                        'weight': int(weight),
+                    }
+                )
+        return {'ttl': self._record_ttl(records[0]), 'type': _type, 'values': values}
 
     _data_for_TXT = _data_for_multiple
 
     def zone_records(self, zone):
         if zone.name not in self._zone_records:
             try:
-                zone_id = self.zone_metadata(zone_name=zone.name)['id']
-                self._zone_records[zone.name] = self._client.zone_records_get(
-                    zone_id
-                )
-            except HetznerClientNotFound:
+                # Remove trailing dot for Vultr API
+                domain = zone.name[:-1]
+                self._zone_records[zone.name] = self._client.zone_records_get(domain)
+            except VultrClientNotFound:
                 return []
 
         return self._zone_records[zone.name]
@@ -262,7 +278,7 @@ class HetznerProvider(BaseProvider):
     def _params_for_multiple(self, record):
         for value in record.values:
             yield {
-                'value': value.replace('\\;', ';'),
+                'data': value.replace('\\;', ';'),
                 'name': record.name,
                 'ttl': record.ttl,
                 'type': record._type,
@@ -275,7 +291,7 @@ class HetznerProvider(BaseProvider):
         for value in record.values:
             data = f'{value.flags} {value.tag} "{value.value}"'
             yield {
-                'value': data,
+                'data': data,
                 'name': record.name,
                 'ttl': record.ttl,
                 'type': record._type,
@@ -283,7 +299,7 @@ class HetznerProvider(BaseProvider):
 
     def _params_for_single(self, record):
         yield {
-            'value': record.value,
+            'data': record.value,
             'name': record.name,
             'ttl': record.ttl,
             'type': record._type,
@@ -293,49 +309,54 @@ class HetznerProvider(BaseProvider):
 
     def _params_for_MX(self, record):
         for value in record.values:
-            data = f'{value.preference} {value.exchange}'
             yield {
-                'value': data,
+                'data': value.exchange,
                 'name': record.name,
                 'ttl': record.ttl,
                 'type': record._type,
+                'priority': value.preference,
             }
 
     _params_for_NS = _params_for_multiple
 
     def _params_for_SRV(self, record):
         for value in record.values:
-            data = (
-                f'{value.priority} {value.weight} {value.port} '
-                f'{value.target}'
-            )
+            # Remove trailing dot from target if present
+            target = value.target
+            if target.endswith('.'):
+                target = target[:-1]
+                
+            data = f'{value.weight} {value.port} {target}'
             yield {
-                'value': data,
+                'data': data,
                 'name': record.name,
                 'ttl': record.ttl,
                 'type': record._type,
+                'priority': value.priority,
             }
 
     _params_for_TXT = _params_for_multiple
 
-    def _apply_Create(self, zone_id, change):
+    def _apply_Create(self, domain, change):
         new = change.new
         params_for = getattr(self, f'_params_for_{new._type}')
         for params in params_for(new):
+            priority = params.pop('priority', None) if 'priority' in params else None
             self._client.zone_record_create(
-                zone_id,
+                domain,
                 params['name'],
                 params['type'],
-                params['value'],
+                params['data'],
                 params['ttl'],
+                priority,
             )
 
-    def _apply_Update(self, zone_id, change):
+    def _apply_Update(self, domain, change):
         # It's way simpler to delete-then-recreate than to update
-        self._apply_Delete(zone_id, change)
-        self._apply_Create(zone_id, change)
+        self._apply_Delete(domain, change)
+        self._apply_Create(domain, change)
 
-    def _apply_Delete(self, zone_id, change):
+    def _apply_Delete(self, domain, change):
         existing = change.existing
         zone = existing.zone
         for record in self.zone_records(zone):
@@ -343,7 +364,7 @@ class HetznerProvider(BaseProvider):
                 existing.name == record['name']
                 and existing._type == record['type']
             ):
-                self._client.zone_record_delete(zone_id, record['id'])
+                self._client.zone_record_delete(domain, record['id'])
 
     def _apply(self, plan):
         desired = plan.desired
@@ -352,15 +373,18 @@ class HetznerProvider(BaseProvider):
             '_apply: zone=%s, len(changes)=%d', desired.name, len(changes)
         )
 
+        # Remove trailing dot for Vultr API
+        domain = desired.name[:-1]
+        
         try:
-            zone_id = self.zone_metadata(zone_name=desired.name)['id']
-        except HetznerClientNotFound:
+            self.zone_metadata(zone_name=desired.name)
+        except VultrClientNotFound:
             self.log.debug('_apply:   no matching zone, creating domain')
-            zone_id = self._client.zone_create(desired.name[:-1])['id']
+            self._client.zone_create(domain)
 
         for change in changes:
             class_name = change.__class__.__name__
-            getattr(self, f'_apply_{class_name}')(zone_id, change)
+            getattr(self, f'_apply_{class_name}')(domain, change)
 
         # Clear out the cache if any
-        self._zone_records.pop(desired.name, None)
+        self._zone_records.pop(desired.name, None) 
